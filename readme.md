@@ -1,6 +1,8 @@
 # ENPM661 - Planning for Autonomous Robots - Project 3
 Name: Naveen Anil
 UID: 119398593
+Name: Orlandis D. Smith
+UID: 1184933077
 Course:  ENPM661 - Planning for Autonomous Robots
 
 ## Installing the dependencies
@@ -11,10 +13,6 @@ pip install numpy
 *To install opencv*
 ```
 pip install opencv - python
-```
-*To install matplotlib*
-```
-pip install matplotlib
 ```
 
 ## Running the code
