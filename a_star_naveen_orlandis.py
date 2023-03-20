@@ -3,6 +3,7 @@ import math
 import cv2
 from math import dist
 import time
+from math import dist
 
 fourcc = cv2.VideoWriter_fourcc(*'XVID')                    
 out = cv2.VideoWriter('w_space.avi', fourcc, 30.0, (600, 250))
@@ -18,7 +19,7 @@ angle_thresh = 30
 x_axis = np.arange(0, 600, thresh)
 y_axis = np.arange(0, 250, thresh)
 theta_grid = np.arange(0, 360, 30)
-theta_move = [-60, -30, -0, 30, 60]
+theta_move = [-60, -30, 0, 30, 60]
 
 ####################################Creating obstacle space
 def w_space(max_x,max_y):
@@ -82,14 +83,14 @@ def backtrack(b_node):
     return path
 
 #############################Defining movemnet
-def action(node, theta, step):
-    x, y = node['pos']
-    n_theta = (node['theta'] + theta)%360
-    n_theta = np.deg2rad(n_theta)
-    x_ = step*np.cos(n_theta) + x
-    y_ = step*np.sin(n_theta) + y
+def action(node_, theta, step):
+    x, y = node_['pos']
+    n_theta = (node_['theta'] + theta)%360
+    r_theta = np.deg2rad(n_theta)
+    x_ = step*np.cos(r_theta) + x
+    y_ = step*np.sin(r_theta) + y
     n_pos = ((x_//thresh)//2, (y_//thresh)//2)
-    return n_pos, n_theta, node['cost'] + 1
+    return n_pos, n_theta, node_['cost'] + 1
 
 obstacles = w_space(width,height)
 ###################################Defining workspace
@@ -110,10 +111,13 @@ ch1, ch2, ch3 = cv2.split(b_canvas)
 ch3 = ch3.T
  ###########################Checking if child node in obstacle path
 def o_space(pose):
-    x = pose[0]
-    y = pose[1]
+    x = int(pose[0])
+    y = int(pose[1])
     if ch3[x][y] == 255:
+        return True
+    else:
         return False
+    
 ip = True    
 while ip:
 
@@ -126,10 +130,10 @@ while ip:
     theta_g= int(input("Enter the orientation of the goal point: "))
     k = int(input("Enter the length of step: "))
 
-    if (theta_s/30 != 0) and theta_s not in range (-60, 61):
+    if (theta_s % 30 != 0) or theta_s not in range (-60, 61):
         print('Invalid entry')
         print("Try again")
-    elif (theta_g/30 != 0) and theta_s not in range (-60, 61):
+    elif (theta_g % 30 != 0) and theta_s not in range (-60, 61):
         print("Invalid entry")
         print("Try again")
     elif k not in range(0,11):
@@ -143,26 +147,31 @@ while ip:
     else:
         ip = False
     
-    s_node = (start_x,start_y)
-    g_node = (goal_x, goal_y)
-    s_node_key = (s_node,theta_s)
-    nodes = initial_nodes(s_node)
+s_node = (start_x,start_y)
+g_node = (goal_x, goal_y)
+s_node_key = (s_node,theta_s)
+nodes = initial_nodes(s_node_key)
+start_time = time.time()
 
-    def a_star(g_node, theta_g):
-        open_dict = {s_node_key: dist(s_node, g_node)}
-        c_list = {s_node_key}
-        create = [nodes[s_node_key]] #Contains initial information
+def a_star(g_node, theta_g):
+    open_dict = {s_node_key: dist(s_node, g_node)}
+    c_list = {s_node_key}
+    create = [nodes[s_node_key]] #Contains initial information
 
-        while len(open_dict): #Loop until open list is empty
-            key = min(open_dict, key = open_dict.get) #Finds the node with the smallest distance
-            c_list.add(key)
-            open_dict.pop(key)
-            m_node = nodes[key]
-            if is_goal(m_node, g_node, theta_g):
-                print("Goal reached")
-                return backtrack(m_node), create
-            for t_list in theta_move:
-                pos, theta, cost = action(m_node, t_list, k) #New node and cost
+    while len(open_dict): #Loop until open list is empty
+        key = min(open_dict, key = open_dict.get) #Finds the node with the smallest distance
+        c_list.add(key)
+        open_dict.pop(key)
+        m_node = nodes[key]
+        #print(m_node)
+        if is_goal(m_node, g_node, theta_g):
+            print("Goal reached")
+            return backtrack(child), create
+        for t_list in theta_move:
+            pos, theta, cost = action(m_node, t_list, k) #New node and cost
+            #print("Node",pos)
+            #print(theta)
+
             if not o_space(pos) and (pos,theta) not in c_list:
                 child = nodes[(pos,theta)]
                 if cost < child['cost']:
@@ -171,6 +180,40 @@ while ip:
                     open_dict[(pos, theta)] = cost + dist(pos, g_node)
                     create.append(child)
 
+btrack , create = a_star(g_node,theta_g)
+print('Execuion time ' + str(time.time() - start_time) + ' seconds') 
+#print("Backtracked path")
+#print(btrack)
+print("Generating video....")
+
+cv2.circle(b_canvas, (goal_x,b_canvas.shape[0]-goal_y), 2, (255, 255, 255), 2)
+cv2.circle(b_canvas, (start_x,b_canvas.shape[0]-start_y), 2, (255, 255, 255), 2)
+
+for n in create:
+    #print(n['pos'], n['theta'])
+    i, j = n['pos'] #Extracts the position of the current node
+    parent = n['parent']
+    if parent is None:
+        parent = btrack[0]
+    i_, j_ = parent['pos']
+    cv2.arrowedLine(b_canvas, (int(i), int(249-j)), (int(i_), int(249-j_)), [0,250,0], 2)
+    out.write(b_canvas)
+
+
+if btrack is not None:
+    for n in btrack:
+        print("Backtracked path")
+        print(n['pos'], n['theta'])
+        i, j = n['pos']
+        parent = n['parent']
+        if parent is None:
+            parent = btrack[0]
+        i_, j_ = parent['pos']
+        cv2.arrowedLine(b_canvas, (int(i), int(249-j)), (int(i_), int(249-j_)), [255,0,0], 2)
+        out.write(b_canvas)
+
+out.release()
+print("Video saved")
             
 
             
